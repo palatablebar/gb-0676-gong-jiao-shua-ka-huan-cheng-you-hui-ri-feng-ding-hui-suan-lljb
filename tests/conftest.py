@@ -9,6 +9,10 @@ def sample(): return load_sample("dirty.csv")
 @pytest.fixture
 def result(sample): return calculate(sample)
 @pytest.fixture
+def typhoon_sample(): return load_sample("typhoon.csv")
+@pytest.fixture
+def typhoon_result(typhoon_sample): return calculate(typhoon_sample)
+@pytest.fixture
 def client():
     from app.main import create_app
     return create_app().test_client()

@@ -11,8 +11,9 @@
 | M3 票价版本 | 查看并运行票价版本 | `/api/fares` | `app/modules/m3_fares/rules.py` | `tests/test_m3.py` |
 | M4 行程配对 | 查看并运行行程配对 | `/api/journeys` | `app/modules/m4_journeys/rules.py` | `tests/test_m4.py` |
 | M5 优惠回算 | 查看并运行优惠回算 | `/api/discounts` | `app/modules/m5_discounts/rules.py` | `tests/test_m5.py` |
-| M6 清分对账 | 查看并运行清分对账 | `/api/clearing` | `app/modules/m6_clearing/rules.py` | `tests/test_m6.py` |
-| M7 日结归档 | 查看并运行日结归档 | `/api/settlement` | `app/modules/m7_settlement/rules.py` | `tests/test_m7.py` |
+| M6 应急补偿 | 查看并运行应急补偿 | `/api/emergency` | `app/modules/m6_emergency/rules.py` | `tests/test_m6.py` |
+| M7 清分对账 | 查看并运行清分对账 | `/api/clearing` | `app/modules/m7_clearing/rules.py` | `tests/test_m7.py` |
+| M8 日结归档 | 查看并运行日结归档 | `/api/settlement` | `app/modules/m8_settlement/rules.py` | `tests/test_m8.py` |
 
 ## 陷阱登记
 
@@ -31,11 +32,16 @@
 | TRAP-11 | 混合偏移 | 落错版本 | UTC归整 | `app/values.py` | `tests/test_m3.py::test_timezone_equal` |
 | TRAP-23 | 换乘截止点 | 重复优惠 | 截止点排除 | `app/modules/m5_discounts/rules.py` | `tests/test_m5.py::test_exact_window_excluded` |
 | TRAP-25 | 票价重叠 | 随意取版 | 冲突隔离 | `app/modules/m3_fares/rules.py` | `tests/test_m3.py::test_overlap_rejected` |
+| TRAP-30 | 免票改写计费链 | 免票行程换乘/封顶被清零 | 普通计费链原样保留，应急仅叠加标记 | `app/modules/m6_emergency/rules.py` | `tests/test_m6.py::test_normal_chain_preserved_and_marked_free` |
+| TRAP-31 | 补偿覆盖优惠 | 按基础票价全额补偿 | 补偿=原应付−实扣，只补自掏部分 | `app/modules/m6_emergency/rules.py` | `tests/test_m6.py::test_compensation_excludes_transfer_and_cap` |
+| TRAP-32 | 重复补偿 | 同指令/重试重复发钱 | 指令幂等+行程唯一主张+线路日唯一台账 | `app/modules/m6_emergency/rules.py` | `tests/test_m6.py::test_repeated_tap_not_double_compensated` |
+| TRAP-33 | 台账口径不一 | 每程各算各的 | 每线路每业务日唯一台账且合计守恒 | `app/modules/m7_clearing/rules.py` | `tests/test_m8.py::test_duplicate_comp_ledger_blocked` |
+| TRAP-34 | 补偿切换覆盖旧版 | 直接覆盖结果 | 版本条件更新，失败409且旧版可读 | `app/store.py` | `tests/test_e2e.py::test_compensation_switch_version_guard` |
 
 ## 对账规则
 
-输入原始逻辑行=最终采纳来源行+隔离来源行+重复行+空白行+分段表头。派生记录用_sources保存完整来源，因此分组不丢行。业务预期合计与上游申报合计之差等于逐行差异之和。结果按输入摘要、规则版本及参数产生唯一批次，事务写入；同源重跑只复用已有批次。
+输入原始逻辑行=最终采纳来源行+隔离来源行+重复行+空白行+分段表头。派生记录用_sources保存完整来源，因此分组不丢行。业务预期合计与上游申报合计之差等于逐行差异之和；免票行程的差额由政府补偿解释，结论记“免票”而非“差异”。应急补偿按线路业务日归并为唯一台账，逐行补偿合计须等于台账合计，守恒式为基础票价=换乘优惠+封顶优惠+政府补偿+实扣。结果按输入摘要、规则版本及参数产生唯一批次，事务写入；同源重跑只复用已有批次。来源未对平或台账键重复时禁止封存。
 
 ## 已知不覆盖
 
-4MB以上文件需预先按业务键分批；不模拟生产支付与外部回调。人工复核只变更批次状态，不改写原始记录。
+4MB以上文件需预先按业务键分批；不模拟生产支付与外部回调。人工复核与补偿确认只变更批次状态，不改写原始记录与应急指令。

@@ -40,6 +40,13 @@ def create_app():
         p=request.get_json(silent=True) or {}
         if not isinstance(p.get("version"),int): raise DomainError("BAD_VERSION","请提供版本号")
         return store.review(run_id,p["version"],p.get("decision"))
+    @application.post("/api/runs/<run_id>/compensation")
+    def compensation_switch(run_id):
+        p=request.get_json(silent=True) or {}
+        if not isinstance(p.get("version"),int): raise DomainError("BAD_VERSION","请提供版本号")
+        decision=p.get("decision")
+        if decision not in {"补偿已确认","退回重算"}: raise DomainError("BAD_DECISION","补偿结论无效")
+        return store.switch_compensation(run_id,p["version"],decision)
     @application.get("/api/runs/<run_id>/archive")
     def archive(run_id):
         from app.archive import build_archive

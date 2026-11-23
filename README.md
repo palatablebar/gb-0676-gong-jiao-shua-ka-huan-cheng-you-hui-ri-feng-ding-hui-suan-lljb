@@ -9,7 +9,7 @@ docker compose up --build -d
 docker compose exec -T app pytest -q
 ```
 
-打开 http://localhost:18245 。首次进入自动运行仓内脏样例。工具条可重跑、切换样例或上传CSV。SQLite保存在命名卷records中，重建服务保留批次。
+打开 http://localhost:18245 。首次进入自动运行仓内脏样例。工具条可重跑、切换样例（含台风应急免票批）或上传CSV。SQLite保存在命名卷records中，重建服务保留批次。
 
 ## 模块
 
@@ -18,12 +18,13 @@ docker compose exec -T app pytest -q
 - 3. 票价版本：`/fares`，`/api/fares`。
 - 4. 行程配对：`/journeys`，`/api/journeys`。
 - 5. 优惠回算：`/discounts`，`/api/discounts`。
-- 6. 清分对账：`/clearing`，`/api/clearing`。
-- 7. 日结归档：`/settlement`，`/api/settlement`。
+- 6. 应急补偿：`/emergency`，`/api/emergency`。
+- 7. 清分对账：`/clearing`，`/api/clearing`。
+- 8. 日结归档：`/settlement`，`/api/settlement`。
 
 ## 核心规则
 
-换乘按上次有效付费行程的时间窗计算，优惠与日封顶按确定顺序裁决并保留分币守恒。
+换乘按上次有效付费行程的时间窗计算，优惠与日封顶按确定顺序裁决并保留分币守恒。台风应急免票在优惠回算之后叠加：免票行程完整保留普通计费链（原应付不改写），政府补偿=原应付−实扣，只补乘客自掏部分，不覆盖换乘优惠或封顶已承担部分；每条线路每个业务日产出唯一补偿台账，同一应急指令或刷卡重试不重复补偿。补偿结论经版本条件切换，失败返回409且旧版仍可读；来源未对平暂缓封存。详见 `docs/DATA-DICTIONARY.md`。
 
 ## 演示
 
@@ -36,7 +37,7 @@ docker compose exec -T app pytest -q
 
 输入列见 `docs/DATA-DICTIONARY.md`。项目包含dirty.csv、clean.csv、legacy.csv，统一走实际导入路径。上传限制4MB，拒绝不带时区的时间。业务键按字符串保留，Decimal参与计算，空值不会当零。
 
-`POST /api/runs` 接收sample或csv；`GET /api/runs`返回历史批次；`POST /api/runs/<id>/review`需要version与decision；`GET /api/runs/<id>/archive`返回唯一证据导出。
+`POST /api/runs` 接收sample或csv；`GET /api/runs`返回历史批次；`POST /api/runs/<id>/review`需要version与decision；`POST /api/runs/<id>/compensation`需要version与补偿decision（补偿已确认/退回重算）；`GET /api/runs/<id>/archive`返回唯一证据导出（含compensation台账行）。
 
 ## 范围
 

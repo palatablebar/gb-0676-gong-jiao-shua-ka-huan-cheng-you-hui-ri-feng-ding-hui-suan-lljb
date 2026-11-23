@@ -7,3 +7,11 @@
 业务ID和超大整数按文本保形；Decimal参与数量金额计算，对外序列化为字符串。哨兵集合定义在app/values.py，缺失值不能当零。所有时间带UTC偏移，先转UTC比较，业务日按指定地区划分。区间统一[start,end)。重复业务键保留第一条、完全相同行计重复；值冲突行隔离且保留原值。空文件、全空白、仅表头分开拒绝。
 
 运行清单包括输入sha256、规则版本、参数、生成时刻与耗时。源行编号以CSV解析器的物理结束行号表示，引号内换行不增加记录数。输入超过4MB返回413，非法表头和类型返回422，失效版本复核返回409。
+
+## 台风应急免票补偿
+
+应急指令通过参数 `emergency_directives` 下达，每条含 `directive_id`、`route`、`start`、`end`（均需带时区，半开 `[start,end)`）、可选 `label`。指令号重复、线路未登记、时间窗非递增或同线路窗口重叠分别以 `DUP_DIRECTIVE`、`BAD_DIRECTIVE_ROUTE`、`BAD_DIRECTIVE_WINDOW`、`DIRECTIVE_OVERLAP` 拒绝。台风样例 `typhoon.csv` 在未显式传指令时自动注入默认指令。
+
+免票行程**完整保留普通计费链**：基础票价、换乘优惠、日封顶与“原应付” `expected` 均不因免票改写，应急阶段只叠加免票标记。政府补偿口径为 `government_compensation = 原应付 expected − 实扣 reported`，只补乘客本应自掏部分；守恒式为 `基础票价 = 换乘优惠 + 封顶优惠 + 政府补偿 + 实扣`，因此换乘优惠与封顶已承担的减免不会被政府补偿重复覆盖。补偿为负报 `COMPENSATION_NEGATIVE`，守恒不平报 `COMPENSATION_UNBALANCED`。
+
+每条线路每个业务日只产生唯一一条补偿台账（键 `线路|业务日`），同一业务日同一线路被多条指令主张报 `LEDGER_CONFLICT`；同一行程重复主张报 `DUP_COMPENSATION`，完全重复刷卡在采信阶段计为重复行，二者都不会重复补偿。清分阶段免票行程结论为“免票”（不计“差异”），其差额恰由政府补偿解释；台账合计须等于逐行补偿合计，否则 `LEDGER_UNBALANCED`。来源行未对平或台账键重复时，日结归档分别以 `UNBALANCED`、`LEDGER_DUPLICATE` 阻断封存。原始刷卡记录与应急指令全程只读，不删除不改写。
